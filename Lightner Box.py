@@ -1,48 +1,30 @@
-from dotenv import load_dotenv
-import os
+    
+from fastapi import APIRouter, HTTPException, Depends
+from models import User, FlashCard, MainBox
+from database import Base, get_db
+from auth import hash_password, verify_password
+from schemas import UserCreate, UserLogin
+from sqlalchemy.orm import Session
 
-from sqlalchemy import Column, Integer, String, ForeignKey, create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy import inspect
-
-load_dotenv()
-
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL is not set in the environment variables")
-if not DATABASE_URL.startswith(("sqlite://", "postgresql://", "mysql://", "mariadb://")):
-    raise ValueError(f" خطا: مقدار DATABASE_URL نامعتبر است: {DATABASE_URL}")
-print(f" مقدار DATABASE_URL: {DATABASE_URL}")
-
-Base = declarative_base()
+router = APIRouter()
 
 
-class MainBox(Base):
-    __tablename__ = "LightnerBox"
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    StepName = Column(String, index=True)
+@router.post("/register")
+def register_user(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    hashed_pw = hash_password(user.password)
+    new_user = User(username=user.username, email=user.email, hashed_password=hashed_pw)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return {"msg": "User registered successfully"}
 
 
-class FlashCard(Base):
-    __tablename__ = "LightnerBoxCard"
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    question = Column(String, index=True)
-    answer = Column(String, index=True)
-    step = Column(String, index=True)
-    StepStartDate = Column(String, index=True)
-    ShowDateOfCard = Column(String, index=True)
-    LightnerBoxId = Column(Integer, ForeignKey('LightnerBox.id'))
-
-
-engine = create_engine(DATABASE_URL)
-print("اتصال به دیتابیس برقرار شد!")
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base.metadata.create_all(bind=engine)
-print("جدول پایگاه داده ایجاد شد!")
-
-inspector = inspect(engine)
-tables = inspector.get_table_names()
-print(" جداول موجود در دیتابیس:", tables)
-
-db_path = os.path.abspath("mydb.db")
-print(f" مسیر واقعی دیتابیس: {db_path}")
+@router.post("/login")
+def login(user: UserLogin, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.email == user.email).first()
+    if not db_user or not verify_password(user.password, db_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    return {"msg": "Login successful"}
