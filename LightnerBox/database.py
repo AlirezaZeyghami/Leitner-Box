@@ -3,7 +3,8 @@ import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
-from models import Base
+
+Base = declarative_base()
 
 load_dotenv()
 
@@ -24,7 +25,7 @@ inspector = inspect(engine)
 tables = inspector.get_table_names()
 print(" جداول موجود در دیتابیس:", tables)
 
-db_path = os.path.abspath("mydb.db")
+db_path = os.path.abspath("../mydb.db")
 print(f" مسیر واقعی دیتابیس: {db_path}")
 
 
